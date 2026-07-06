@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NER as Human Data — Article 46</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #d4c9b5;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 30px 16px;
+    font-family: 'EB Garamond', Georgia, serif;
+  }
+  .canvas {
+    max-width: 1150px;
+    width: 100%;
+    background: #f5efe0;
+    border-radius: 4px;
+    padding: 40px 36px 30px;
+    box-shadow:
+      0 2px 12px rgba(0,0,0,0.08),
+      inset 0 0 0 1px rgba(255,255,255,0.4),
+      0 0 0 1.5px #c4b69e,
+      0 0 0 3px #e8dccc;
+  }
+
+  .title {
+    font-family: 'Caveat', cursive;
+    font-size: 38px;
+    font-weight: 700;
+    color: #2c2420;
+    margin-bottom: 2px;
+  }
+  .subtitle {
+    font-family: 'Caveat', cursive;
+    font-size: 20px;
+    color: #7a6b5a;
+    margin-bottom: 22px;
+  }
+  .stats-line {
+    font-family: 'Caveat', cursive;
+    font-size: 17px;
+    color: #7a6b5a;
+    margin-bottom: 18px;
+  }
+  .stats-line span {
+    background: #e8dccc;
+    padding: 2px 14px;
+    border-radius: 20px;
+    margin-right: 6px;
+  }
+
+  /* ── GARDEN ───────────────────────────────── */
+  .garden {
+    position: relative;
+    min-height: 820px;
+    border: 2px dashed #cabca8;
+    border-radius: 24px;
+    padding: 10px;
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+
+  /* Cluster shaded area */
+  .cluster-zone {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0.07;
+  }
+  .cluster-zone-labels {
+    position: absolute;
+    pointer-events: none;
+  }
+  .cluster-title {
+    font-family: 'Caveat', cursive;
+    font-size: 18px;
+    font-weight: 600;
+    color: #3d3228;
+    position: absolute;
+    text-align: center;
+    pointer-events: none;
+    background: rgba(245,239,224,0.85);
+    padding: 3px 16px 5px;
+    border-radius: 20px;
+    border: 1px solid #cabca8;
+    z-index: 2;
+  }
+
+  /* ── DATA MARKS ───────────────────────────── */
+  .mark {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    cursor: help;
+    z-index: 3;
+  }
+  .mark-inner {
+    border-radius: 50%;
+    transition: transform 0.1s, box-shadow 0.1s;
+    opacity: 0.85;
+  }
+  .mark:hover .mark-inner {
+    transform: scale(2.2);
+    box-shadow: 0 0 0 3px rgba(44,36,32,0.2);
+    opacity: 1;
+    z-index: 20;
+  }
+
+  .mark-LOC .mark-inner { background: #6b8f6b; }
+  .mark-PER .mark-inner { background: #8a7bb3; }
+  .mark-ORG .mark-inner { background: #c4903a; }
+
+  /* Size classes */
+  .mark-s-2  .mark-inner { width: 8px; height: 8px; }
+  .mark-s-3  .mark-inner { width: 10px; height: 10px; }
+  .mark-s-4  .mark-inner { width: 11px; height: 11px; }
+  .mark-s-5  .mark-inner { width: 12px; height: 12px; }
+  .mark-s-6  .mark-inner { width: 13px; height: 13px; }
+  .mark-s-7  .mark-inner { width: 14px; height: 14px; }
+  .mark-s-9  .mark-inner { width: 16px; height: 16px; }
+  .mark-s-15 .mark-inner { width: 20px; height: 20px; }
+  .mark-s-47 .mark-inner { width: 26px; height: 26px; }
+  .mark-s-71 .mark-inner { width: 32px; height: 32px; }
+
+  /* Entity name labels (for frequent entities) */
+  .entity-label {
+    position: absolute;
+    transform: translate(-50%, 8px);
+    font-family: 'Caveat', cursive;
+    font-size: 13px;
+    color: #5a4d3d;
+    pointer-events: none;
+    text-align: center;
+    white-space: nowrap;
+    opacity: 0.85;
+    transition: opacity 0.15s;
+    z-index: 2;
+  }
+  .mark:hover ~ .entity-label { opacity: 1; }
+
+  /* ── TOOLTIP ──────────────────────────────── */
+  .tooltip {
+    display: none;
+    position: fixed;
+    font-family: 'Caveat', cursive;
+    font-size: 20px;
+    color: #2c2420;
+    background: #f5efe0;
+    border: 1.5px solid #ab9b88;
+    padding: 10px 18px 8px;
+    border-radius: 16px 16px 16px 4px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    pointer-events: none;
+    z-index: 100;
+    line-height: 1.4;
+  }
+  .tooltip .tt-type {
+    font-size: 14px;
+    color: #8a7b68;
+    font-family: 'EB Garamond', serif;
+    font-style: italic;
+    display: block;
+    margin-top: 1px;
+  }
+
+  /* ── LEGEND ───────────────────────────────── */
+  .legend {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 10px 0 6px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Caveat', cursive;
+    font-size: 18px;
+    color: #4a3d30;
+  }
+  .legend-item .dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── RESEARCHER'S NOTE ────────────────────── */
+  .researcher-note {
+    font-family: 'Caveat', cursive;
+    font-size: 19px;
+    color: #5a4d3d;
+    border-top: 2px dashed #cabca8;
+    padding-top: 16px;
+    margin-top: 6px;
+    text-align: center;
+    line-height: 1.5;
+  }
+  .researcher-note strong { color: #2c2420; font-weight: 700; }
+  .researcher-note::before { content: '✎ '; font-size: 20px; opacity: 0.5; }
+
+  @media (max-width: 720px) {
+    .canvas { padding: 20px 12px; }
+    .garden { min-height: 1000px; }
+    .title { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="canvas">
+  <div class="title">A Text's Geography</div>
+  <div class="subtitle">Putin's "On the Historical Unity of Russians and Ukrainians" — every named entity as a mark</div>
+  <div class="stats-line">
+    <span>426 mentions</span> <span>176 unique entities</span> <span>1 article</span> <span>Jul 2021</span>
+  </div>
+
+  <div class="garden" id="garden"></div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="dot" style="background:#6b8f6b"></div> LOC — places</div>
+    <div class="legend-item"><div class="dot" style="background:#8a7bb3"></div> PER — persons</div>
+    <div class="legend-item"><div class="dot" style="background:#c4903a"></div> ORG — organizations</div>
+    <div class="legend-item"><div class="dot" style="background:#888;width:10px;height:10px"></div> size = frequency</div>
+  </div>
+
+  <div class="researcher-note">
+    <strong>Researcher's note:</strong> Ukraine is mentioned <strong>71 times</strong> — more than all persons combined. Russia 47. The text reaches from <em>Ancient Rus</em> to <em>NATO</em>. Each dot is one specific mention. Not one is abstract.
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <span id="ttName"></span>
+  <span class="tt-type" id="ttType"></span>
+</div>
+
+<script>
+// ── DATA (426 mentions from article 46) ──────────────
+const MENTIONS = [
+  ["Vladimir Putin","PER"],["Russia","LOC"],["Ukraine","LOC"],["Russia","LOC"],["Ukraine","LOC"],
+  ["Ancient Rus","LOC"],["Europe","LOC"],["Ladoga","LOC"],["Novgorod","LOC"],["Pskov","LOC"],
+  ["Kiev","LOC"],["Chernigov","LOC"],["Rurik","PER"],["Rus","LOC"],["St. Vladimir","PER"],
+  ["Novgorod","LOC"],["Kiev","LOC"],["Kiev","LOC"],["Ancient Rus","LOC"],["Oleg the Prophet","PER"],
+  ["Kiev","LOC"],["Ancient Rus","LOC"],["Rus","LOC"],["Batu Khan","PER"],["Kiev","LOC"],
+  ["Rus","LOC"],["Golden Horde","ORG"],["Grand Duchy of Lithuania","LOC"],
+  ["Grand Duchy of Lithuania and Russia","LOC"],["Bobrok","PER"],["Volyn","LOC"],["Lithuania","LOC"],
+  ["Algirdas","PER"],["Andrey","PER"],["Polotsk","LOC"],["Dmitry","PER"],["Bryansk","LOC"],
+  ["Dmitry Ivanovich","PER"],["Moscow","LOC"],["Kulikovo field","LOC"],["Lithuania","LOC"],
+  ["Jogaila","PER"],["Tver","LOC"],["Mamai","PER"],["Lithuanian Rus","LOC"],["Moscow Rus","LOC"],
+  ["Ancient Rus","LOC"],["Moscow","LOC"],["Moscow","LOC"],["Alexander Nevsky","PER"],
+  ["Grand Duchy of Lithuania","LOC"],["Lithuania","LOC"],["Kingdom of Poland","LOC"],
+  ["Polish–Lithuanian Commonwealth","LOC"],["Rus","LOC"],["Pope","PER"],["Dnieper region","LOC"],
+  ["Bohdan Khmelnytsky","PER"],["Polish–Lithuanian Commonwealth","LOC"],
+  ["Polish–Lithuanian Commonwealth","LOC"],["Zaporizhian Host","ORG"],["Kiev","LOC"],
+  ["Bohdan Khmelnytsky","PER"],["Moscow","LOC"],["Zemsky Sobor","ORG"],["Pereyaslav Council","ORG"],
+  ["Bohdan Khmelnytsky","PER"],["Moscow","LOC"],["Kiev","LOC"],["Moscow","LOC"],
+  ["Bohdan Khmelnytsky","PER"],["Aleksey Mikhaylovich","PER"],["Zaporizhian Host","ORG"],
+  ["Polish–Lithuanian Commonwealth","LOC"],["Bohdan Khmelnytsky","PER"],["Moscow","LOC"],
+  ["Sweden","LOC"],["Poland","LOC"],["Turkey","LOC"],["Kiev","LOC"],["Dnieper River","LOC"],
+  ["Poltava region","LOC"],["Chernigov region","LOC"],["Zaporozhye","LOC"],["Malorossia","LOC"],
+  ["Little Russia","LOC"],["Ukraine","LOC"],["Polish–Lithuanian Commonwealth","LOC"],["Dnieper","LOC"],
+  ["Sweden","LOC"],["Malorossia","LOC"],["Mazepa","PER"],["Russia","LOC"],
+  ["Kiev-Mohyla Academy","ORG"],["Hetmanate","LOC"],["Russian Empire","LOC"],["Urals","LOC"],
+  ["Siberia","LOC"],["Caucasus","LOC"],["Far East","LOC"],["Ukraine","LOC"],
+  ["Nikita Khrushchev","PER"],["Leonid Brezhnev","PER"],["Ukraine","LOC"],
+  ["Communist Party of the Soviet Union","ORG"],["CPSU","ORG"],["Ottoman Empire","LOC"],
+  ["Russia","LOC"],["Crimea","LOC"],["Black Sea region","LOC"],["Novorossiya","LOC"],
+  ["Polish-Lithuanian Commonwealth","LOC"],["Russian Empire","LOC"],["Galicia","LOC"],
+  ["Transcarpathia","LOC"],["Austrian","LOC"],["Austro-Hungarian – Empire","LOC"],
+  ["Uniate Church","ORG"],["Joseph Rutsky","PER"],["Rome","LOC"],["Moscovia","LOC"],
+  ["Polish-Lithuanian Commonwealth","LOC"],["Rome","LOC"],["Bergamo","LOC"],["Italy","LOC"],
+  ["Ivan Kotlyarevsky","PER"],["Grigory Skovoroda","PER"],["Taras Shevchenko","PER"],
+  ["Taras Shevchenko","PER"],["Nikolay Gogol","PER"],["Poltavshchyna","LOC"],["Russia","LOC"],
+  ["Ukraine","LOC"],["Russian Empire","LOC"],["Malorussia","LOC"],["Novorossiya","LOC"],
+  ["Crimea","LOC"],["Poland","LOC"],["Russian Empire","LOC"],["Galicia","LOC"],["Vienna","LOC"],
+  ["Legion of Ukrainian Sich Riflemen","ORG"],["Russia","LOC"],["Thalerhof","LOC"],["Terezin","LOC"],
+  ["Russian Empire","LOC"],["Central Rada","ORG"],["Kiev","LOC"],
+  ["Ukrainian People's Republic","LOC"],["UPR","LOC"],["Russia","LOC"],["UPR","LOC"],
+  ["Brest-Litovsk","LOC"],["Soviet Russia","LOC"],["Germany","LOC"],["Ukraine","LOC"],
+  ["Central Rada","ORG"],["Ukraine","LOC"],["Rada","ORG"],["Germany","LOC"],
+  ["Austria-Hungary","LOC"],["UPR","LOC"],["Ukraine","LOC"],["Kiev","LOC"],["Central Rada","ORG"],
+  ["Pavlo Skoropadskyi","PER"],["UPR","LOC"],["Ukrainian State","LOC"],["Germany","LOC"],
+  ["Austria-Hungary","LOC"],["Pavlo Skoropadskyi","PER"],["Ukraine","LOC"],
+  ["All-Russian Federation","LOC"],["Directorate","ORG"],["West Ukrainian People's Republic","LOC"],
+  ["WUPR","LOC"],["Ukrainian People's Republic","LOC"],["WUPR","LOC"],["Symon Petliura","PER"],
+  ["Ukraine","LOC"],["UPR Directorate","ORG"],["Galicia","LOC"],["Western Volhynia","LOC"],
+  ["Poland","LOC"],["Kiev","LOC"],["Poland","LOC"],["Soviet Russia","LOC"],["Petliura","PER"],
+  ["UPR","LOC"],["Russian Empire","LOC"],["Russia","LOC"],["Russia","LOC"],
+  ["Bolshevik Party","ORG"],["Soviet Russia","LOC"],["Donetsk-Krivoy Rog Soviet Republic","LOC"],
+  ["Moscow","LOC"],["Soviet Russia","LOC"],["Vladimir Lenin","PER"],["Soviet Ukraine","LOC"],
+  ["Russian Communist Party (Bolsheviks)","ORG"],["Ukrainian Congress of Soviets","ORG"],
+  ["Donetsk Basin","LOC"],["Ukraine","LOC"],["Donetsk-Krivoy Rog Soviet Republic","LOC"],
+  ["Ukraine","LOC"],["Russian SFSR","LOC"],["Ukrainian SSR","LOC"],["Poland","LOC"],
+  ["Russian Empire","LOC"],["Poland","LOC"],["Eastern Borderlands","LOC"],["Western Ukraine","LOC"],
+  ["Western Belarus","LOC"],["Lithuania","LOC"],["USSR","LOC"],
+  ["Ukrainian Soviet Socialist Republic","LOC"],["Lenin","PER"],["USSR","LOC"],["CPSU","ORG"],
+  ["Commonwealth of Independent States","ORG"],["USSR","LOC"],["Ukraine","LOC"],["CIS","ORG"],
+  ["Ukrainian SSR","LOC"],["Mikhail Grushevskiy","PER"],["Central Rada","ORG"],
+  ["Austria-Hungary","LOC"],["USSR","LOC"],["Academy of Sciences","ORG"],["USSR","LOC"],
+  ["Poland","LOC"],["Soviet Ukraine","LOC"],["Ukrainian SSR","LOC"],["Bessarabia","LOC"],
+  ["Romania","LOC"],["Northern Bukovina","LOC"],["Zmeyiniy Island","LOC"],["Snake Island","LOC"],
+  ["Black Sea","LOC"],["Ukraine","LOC"],["Crimean Region","LOC"],["RSFSR","LOC"],
+  ["Ukrainian SSR","LOC"],["Carpathian Ruthenia","LOC"],["Czechoslovakia","LOC"],
+  ["Austria-Hungary","LOC"],["Transcarpathia","LOC"],["Carpathian Ruthenia","LOC"],["RSFSR","LOC"],
+  ["USSR","LOC"],["Carpathian Ukraine","LOC"],["Ukraine","LOC"],["Pravda","ORG"],
+  ["Ukraine","LOC"],["Russia","LOC"],["Ukrainian SSR","LOC"],["Soviet Union","LOC"],
+  ["Russia","LOC"],["Ukraine","LOC"],["CPSU","ORG"],["USSR","LOC"],["Russia","LOC"],
+  ["Russia","LOC"],["Russia","LOC"],["USSR","LOC"],["CPSU","ORG"],["Russia","LOC"],
+  ["Saint Petersburg","LOC"],["Anatoly Sobchak","PER"],["Soviet Union","LOC"],
+  ["Soviet Union","LOC"],["Russian Federation","LOC"],["Ukraine","LOC"],["Ukraine","LOC"],
+  ["Kiev","LOC"],["Ukraine","LOC"],["Europe","LOC"],["Ukraine","LOC"],["Ukraine","LOC"],
+  ["Russia","LOC"],["European Union","ORG"],["Ukraine","LOC"],["Europe","LOC"],["Ukraine","LOC"],
+  ["Ukraine","LOC"],["IMF","ORG"],["Ukraine","LOC"],["Republic of Albania","LOC"],
+  ["Republic of Moldova","LOC"],["Kosovo","LOC"],["Ukraine","LOC"],["Europe","LOC"],
+  ["Ukraine","LOC"],["Ukraine","LOC"],["Russia","LOC"],["Ukraine","LOC"],["Russia","LOC"],
+  ["Ukraine","LOC"],["Ukraine","LOC"],["Kiev","LOC"],["Russia","LOC"],["Ukraine","LOC"],
+  ["USSR","LOC"],["Russia","LOC"],["Ukraine","LOC"],["Ukraine","LOC"],["Ukraine","LOC"],
+  ["Russian Empire","LOC"],["Soviet Union","LOC"],["Ukraine","LOC"],["U.S.","LOC"],
+  ["EU","ORG"],["Ukraine","LOC"],["Russia","LOC"],["Ukraine","LOC"],["Ukraine","LOC"],
+  ["Russia","LOC"],["EU","ORG"],["Russia","LOC"],["EU","ORG"],["Ukraine","LOC"],
+  ["Russia","LOC"],["Ukraine","LOC"],["Ukraine","LOC"],["Europe","LOC"],["Russia","LOC"],
+  ["Russia","LOC"],["Ukraine","LOC"],["Russia","LOC"],["Russia","LOC"],["Moscow","LOC"],
+  ["Russia","LOC"],["Ukraine","LOC"],["Polish-Lithuanian Commonwealth","LOC"],
+  ["Austria-Hungary","LOC"],["OUN-UPA","ORG"],["Ukraine","LOC"],["Ukraine","LOC"],
+  ["Ukraine","LOC"],["Rada","ORG"],["Ukraine","LOC"],["Ukraine","LOC"],["Ukraine","LOC"],
+  ["Russia","LOC"],["Russia","LOC"],["Grand Duchy of Lithuania","LOC"],
+  ["Ukrainian Orthodox Church","ORG"],["Moscow Patriarchate","ORG"],["Ukraine","LOC"],
+  ["UN General Assembly","ORG"],["SS","ORG"],["Mazepa","PER"],["Petliura","PER"],
+  ["Bandera","PER"],["Ukraine","LOC"],["Red Army","ORG"],["Soviet Union","LOC"],
+  ["Ivan Kozhedub","PER"],["Odessa","LOC"],["Sevastopol","LOC"],["Lyudmila Pavlichenko","PER"],
+  ["Sidor Kovpak","PER"],["Russia","LOC"],["Crimea","LOC"],["Sevastopol","LOC"],
+  ["Donetsk","LOC"],["Lugansk","LOC"],["Ukraine","LOC"],["Odessa","LOC"],["Khatyn","LOC"],
+  ["Bandera","PER"],["Crimea","LOC"],["Sevastopol","LOC"],["Donetsk","LOC"],["Lugansk","LOC"],
+  ["Kiev","LOC"],["UN High Commissioner for Human Rights","ORG"],["Donbas","LOC"],
+  ["Russia","LOC"],["Donbas","LOC"],["United Nations Security Council","ORG"],["Ukraine","LOC"],
+  ["Donbas","LOC"],["Donbas","LOC"],["Kiev","LOC"],["Donbas","LOC"],["Ukraine","LOC"],
+  ["DPR","LOC"],["LPR","LOC"],["Russia","LOC"],["Germany","LOC"],["France","LOC"],
+  ["Russia","LOC"],["Ukraine","LOC"],["NATO","ORG"],["NATO","ORG"],["Ukraine","LOC"],
+  ["Ukraine","LOC"],["Russia","LOC"],["Russia","LOC"],["Ukraine","LOC"],["Donbas","LOC"],
+  ["Russia","LOC"],["Ukraine","LOC"],["Ukraine","LOC"],["Russia","LOC"],["Ukraine","LOC"],
+  ["Russia","LOC"],["Russia","LOC"],["Russia","LOC"],["Ukraine","LOC"],["Austria","LOC"],
+  ["Germany","LOC"],["USA","LOC"],["Canada","LOC"],["Ukraine","LOC"],["Russia","LOC"],
+  ["Russia","LOC"],["Ukraine","LOC"],["Ukraine","LOC"],["Russia","LOC"],["Russia","LOC"],
+  ["Ukraine","LOC"],["Russia","LOC"],["Ukraine","LOC"],["Ukraine","LOC"]
+];
+
+// ── HELPERS ──────────────────────────────────────────
+function countByName(name) {
+  return MENTIONS.filter(m => m[0] === name).length;
+}
+function sizeClass(c) {
+  if (c >= 47) return 47;       // Ukraine 71, Russia 47
+  if (c >= 10) return 15;       // Kiev
+  if (c >= 7)  return 9;
+  if (c >= 5)  return 6;
+  if (c === 4) return 5;
+  if (c === 3) return 4;
+  if (c === 2) return 3;
+  return 2;
+}
+
+// ── CLUSTER DEFINITIONS ──────────────────────────────
+const clusters = [
+  { id: 'present', label: 'The Contested Present',
+    cx: 50, cy: 28, r: 15, color: 'rgba(107,143,107,',
+    entities: ['Ukraine','Russia','Kiev','Moscow','Donbas','Crimea','Odessa','Sevastopol',
+               'Donetsk','Lugansk','DPR','LPR','Khatyn','Black Sea','Dnieper','Dnieper region',
+               'Dnieper River','Poltava region','Chernigov region','Zaporozhye','Novorossiya',
+               'Black Sea region','Kulikovo field','Brest-Litovsk','Snake Island','Zmeyiniy Island'],
+    labels: ['Ukraine (×71)', 'Russia (×47)', 'Kiev (×15)', 'Moscow (×9)', 'Donbas (×6)', 'Crimea (×5)'] },
+  { id: 'history', label: 'Historical States & Empires',
+    cx: 25, cy: 35, r: 16, color: 'rgba(107,143,107,',
+    entities: ['Russian Empire','USSR','Soviet Union','Ancient Rus','Rus','Moscow Rus',
+               'Lithuanian Rus','Ukrainian SSR','Soviet Ukraine','Ukrainian Soviet Socialist Republic',
+               'Russian SFSR','RSFSR','Soviet Russia','All-Russian Federation','Russian Federation',
+               'Ukrainian State','Ukrainian People\'s Republic','West Ukrainian People\'s Republic',
+               'Carpathian Ukraine','Carpathian Ruthenia','Hetmanate','Malorossia','Little Russia',
+               'Malorussia','Moscovia','Grand Duchy of Lithuania','Grand Duchy of Lithuania and Russia',
+               'Kingdom of Poland','Polish–Lithuanian Commonwealth','Polish-Lithuanian Commonwealth',
+               'Austria-Hungary','Austro-Hungarian – Empire','Ottoman Empire','Donetsk-Krivoy Rog Soviet Republic',
+               'Ukrainian SSR','UPR','WUPR'],
+    labels: ['USSR (×9)', 'Russian Empire (×8)', 'Polish–Lithuanian Commonwealth (×5)',
+             'Soviet Union (×5)', 'Ukrainian SSR (×5)', 'Ancient Rus (×4)'] },
+  { id: 'region', label: 'Wider Region',
+    cx: 78, cy: 38, r: 14, color: 'rgba(107,143,107,',
+    entities: ['Poland','Lithuania','Germany','Europe','Austria','France','Canada','USA','U.S.',
+               'Sweden','Turkey','Romania','Italy','Vienna','Rome','Bergamo','Czechoslovakia',
+               'Galicia','Transcarpathia','Western Ukraine','Western Volhynia','Western Belarus',
+               'Eastern Borderlands','Northern Bukovina','Bessarabia','Volyn','Polotsk','Tver',
+               'Bryansk','Chernigov','Pskov','Ladoga','Novgorod','Saint Petersburg','Urals',
+               'Siberia','Caucasus','Far East','Thalerhof','Terezin','Kosovo',
+               'Republic of Albania','Republic of Moldova'],
+    labels: ['Poland (×7)', 'Europe (×5)', 'Germany (×5)', 'Lithuania (×4)', 'Austria-Hungary (×5)'] },
+  { id: 'persons', label: 'Persons',
+    cx: 28, cy: 70, r: 14, color: 'rgba(138,123,179,',
+    entities: ['Bohdan Khmelnytsky','Mazepa','Petliura','Symon Petliura','Bandera',
+               'Taras Shevchenko','Nikolay Gogol','Pavlo Skoropadskyi','Vladimir Putin',
+               'Vladimir Lenin','Lenin','Nikita Khrushchev','Leonid Brezhnev','Anatoly Sobchak',
+               'Mikhail Grushevskiy','Rurik','Oleg the Prophet','St. Vladimir','Batu Khan',
+               'Alexander Nevsky','Dmitry Ivanovich','Dmitry','Andrey','Algirdas','Jogaila',
+               'Mamai','Bobrok','Aleksey Mikhaylovich','Ivan Kotlyarevsky','Grigory Skovoroda',
+               'Joseph Rutsky','Ivan Kozhedub','Lyudmila Pavlichenko','Sidor Kovpak','Pope'],
+    labels: ['Bohdan Khmelnytsky (×5)', 'Mazepa (×2)', 'Taras Shevchenko (×2)',
+             'Pavlo Skoropadskyi (×2)', 'Petliura (×2)', 'Bandera (×2)'] },
+  { id: 'orgs', label: 'Organizations',
+    cx: 72, cy: 68, r: 14, color: 'rgba(196,144,58,',
+    entities: ['CPSU','Central Rada','EU','European Union','NATO','Zaporizhian Host','Rada',
+               'Golden Horde','Zemsky Sobor','Pereyaslav Council','Kiev-Mohyla Academy',
+               'Communist Party of the Soviet Union','Uniate Church','Legion of Ukrainian Sich Riflemen',
+               'Directorate','UPR Directorate','Bolshevik Party','Russian Communist Party (Bolsheviks)',
+               'Ukrainian Congress of Soviets','Commonwealth of Independent States','CIS',
+               'Academy of Sciences','Pravda','OUN-UPA','Ukrainian Orthodox Church','Moscow Patriarchate',
+               'UN General Assembly','UN High Commissioner for Human Rights','United Nations Security Council',
+               'SS','Red Army','IMF'],
+    labels: ['CPSU (×4)', 'Central Rada (×4)', 'EU (×3)', 'NATO (×2)', 'Zaporizhian Host (×2)'] }
+];
+
+// ── POSITION CALCULATION ─────────────────────────────
+function isInEntityList(name, list) {
+  if (list.includes(name)) return true;
+  return list.some(e => name.includes(e) || e.includes(name));
+}
+
+function assignCluster(name) {
+  for (const c of clusters) {
+    if (isInEntityList(name, c.entities)) return c;
+  }
+  return clusters[0];
+}
+
+const W = 1050;
+const H = 780;
+
+function getPerEntityBase(name, cluster) {
+  const hash = name.length * 7 + name.charCodeAt(0) * 13 + name.charCodeAt(name.length-1) * 3;
+  const angle = ((hash % 360) * Math.PI / 180);
+  const dist = (hash % 50) * 0.6 + 8;
+  const cx = (cluster.cx / 100) * W;
+  const cy = (cluster.cy / 100) * H;
+  return [cx + Math.cos(angle) * dist, cy + Math.sin(angle) * dist];
+}
+
+const placedCounts = {};
+const positions = [];
+
+for (const [name, type] of MENTIONS) {
+  const cluster = assignCluster(name);
+  const total = countByName(name);
+  if (!placedCounts[name]) placedCounts[name] = 0;
+  const idx = placedCounts[name];
+  placedCounts[name] = idx + 1;
+
+  const [bx, by] = getPerEntityBase(name, cluster);
+  const spread = Math.min(total * 1.8, 28);
+  const angle = (idx / total) * Math.PI * 2 + (Math.random() - 0.5) * 0.8;
+  const dist = (1 + Math.random() * spread * 0.3) * (total > 15 ? 0.35 : total > 5 ? 0.55 : 0.7);
+  const px = bx + Math.cos(angle) * dist;
+  const py = by + Math.sin(angle) * dist;
+
+  positions.push({
+    name, type,
+    x: Math.max(8, Math.min(W - 8, px)),
+    y: Math.max(8, Math.min(H - 8, py)),
+    total,
+    size: sizeClass(total),
+  });
+}
+
+// ── RENDER ───────────────────────────────────────────
+const garden = document.getElementById('garden');
+garden.style.height = H + 'px';
+garden.style.width = '100%';
+garden.style.position = 'relative';
+
+// 1. Cluster zone backgrounds
+for (const c of clusters) {
+  const zone = document.createElement('div');
+  zone.className = 'cluster-zone';
+  const cxPx = (c.cx / 100) * W;
+  const cyPx = (c.cy / 100) * H;
+  const rPx = (c.r / 100) * Math.min(W, H);
+  zone.style.left = (cxPx - rPx) + 'px';
+  zone.style.top = (cyPx - rPx) + 'px';
+  zone.style.width = (rPx * 2) + 'px';
+  zone.style.height = (rPx * 2) + 'px';
+  zone.style.background = `${c.color}0.12)`;
+  zone.style.border = `1.5px solid ${c.color}0.25)`;
+  garden.appendChild(zone);
+}
+
+// 2. Cluster titles
+for (const c of clusters) {
+  const title = document.createElement('div');
+  title.className = 'cluster-title';
+  const cxPx = (c.cx / 100) * W;
+  const cyPx = (c.cy / 100) * H;
+  const rPx = (c.r / 100) * Math.min(W, H);
+  title.textContent = c.label;
+  title.style.left = (cxPx - 80) + 'px';
+  title.style.top = (cyPx - rPx - 14) + 'px';
+  garden.appendChild(title);
+}
+
+// 3. Data marks
+const tooltip = document.getElementById('tooltip');
+const ttName = document.getElementById('ttName');
+const ttType = document.getElementById('ttType');
+
+for (const p of positions) {
+  const el = document.createElement('div');
+  el.className = `mark mark-${p.type} mark-s-${p.size}`;
+  el.style.left = p.x + 'px';
+  el.style.top = p.y + 'px';
+
+  const inner = document.createElement('div');
+  inner.className = 'mark-inner';
+  el.appendChild(inner);
+
+  el.addEventListener('mouseenter', () => {
+    const labels = { PER: 'person', LOC: 'place / territory', ORG: 'organization' };
+    ttName.textContent = `${p.name}  × ${p.total}`;
+    ttType.textContent = labels[p.type] || p.type;
+    tooltip.style.display = 'block';
+  });
+  el.addEventListener('mousemove', (e) => {
+    tooltip.style.left = (e.clientX + 20) + 'px';
+    tooltip.style.top = (e.clientY - 12) + 'px';
+  });
+  el.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+
+  garden.appendChild(el);
+}
+
+// 4. Entity name labels (for frequent entities, next to their cluster)
+for (const c of clusters) {
+  const cxPx = (c.cx / 100) * W;
+  const cyPx = (c.cy / 100) * H;
+  const rPx = (c.r / 100) * Math.min(W, H);
+
+  c.labels.forEach((label, i) => {
+    const lbl = document.createElement('div');
+    lbl.className = 'entity-label';
+    lbl.textContent = label;
+    // Position labels around the bottom-right of the cluster
+    const angle = -0.3 + (i / c.labels.length) * 0.8;
+    const lx = cxPx + Math.cos(angle) * (rPx + 14);
+    const ly = cyPx + Math.sin(angle) * (rPx + 4);
+    lbl.style.left = lx + 'px';
+    lbl.style.top = ly + 'px';
+    lbl.style.textAlign = (lx > cxPx) ? 'left' : 'right';
+    garden.appendChild(lbl);
+  });
+}
+
+// 5. Responsive resize
+function resizeGarden() {
+  const rect = garden.getBoundingClientRect();
+  if (rect.width > 0) {
+    const scale = Math.min(1, rect.width / W);
+    // We just scale the container; the absolute-positioned children scale visually
+  }
+}
+window.addEventListener('resize', resizeGarden);
+</script>
+</body>
+</html>
