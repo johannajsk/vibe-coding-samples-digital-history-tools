@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NER Analysis — Article 46 (Putin)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0f1117;
+    color: #e1e4ea;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    padding: 40px 24px;
+    min-height: 100vh;
+  }
+  .header {
+    max-width: 1100px;
+    margin: 0 auto 36px;
+  }
+  .header h1 {
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    background: linear-gradient(135deg, #f0f4ff 0%, #94a3b8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header .subtitle {
+    color: #64748b;
+    font-size: 14px;
+    margin-top: 6px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .header .subtitle span {
+    background: #1a1d2e;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .grid {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .card {
+    background: #181b28;
+    border: 1px solid #252837;
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+  }
+  .card.full { grid-column: 1 / -1; }
+  .card h2 {
+    font-size: 15px;
+    font-weight: 500;
+    color: #94a3b8;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .chart-container {
+    position: relative;
+    width: 100%;
+    height: 320px;
+  }
+  .card.full .chart-container { height: 400px; }
+
+  /* Legend-style color key */
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #94a3b8;
+  }
+  .legend-item .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+  }
+
+  /* Stats footer */
+  .stats-bar {
+    max-width: 1100px;
+    margin: 24px auto 0;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .stat-chip {
+    background: #181b28;
+    border: 1px solid #252837;
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .stat-chip .num {
+    color: #e1e4ea;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-chip .label {
+    color: #64748b;
+  }
+
+  /* Mention sequence visualization */
+  .sequence-vis {
+    width: 100%;
+    height: 60px;
+    position: relative;
+    margin-top: 12px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #0f1117;
+  }
+  .seq-bar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    min-width: 1px;
+    border-radius: 1px;
+    transition: opacity 0.15s;
+  }
+  .seq-bar:hover { opacity: 0.6 !important; }
+
+  .tooltip-box {
+    position: absolute;
+    background: #1a1d2e;
+    border: 1px solid #334;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 10;
+    display: none;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 768px) {
+    .grid { grid-template-columns: 1fr; }
+    body { padding: 20px 12px; }
+    .card.full .chart-container { height: 320px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Named Entity Recognition — Article 46</h1>
+  <div class="subtitle">
+    <span>"On the Historical Unity of Russians and Ukrainians" (Jul 2021)</span>
+    <span>426 entity mentions</span>
+    <span>176 unique entities</span>
+  </div>
+</div>
+
+<div class="grid">
+  <!-- Chart 1: Entity Type Distribution -->
+  <div class="card">
+    <h2>Entity Type Distribution</h2>
+    <div class="chart-container">
+      <canvas id="typeChart"></canvas>
+    </div>
+    <div class="legend" id="typeLegend"></div>
+  </div>
+
+  <!-- Chart 2: Entity Type as % of Total -->
+  <div class="card">
+    <h2>Type Share &amp; Density</h2>
+    <div class="chart-container">
+      <canvas id="densityChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Chart 3: Top 20 Entities (horizontal bar) -->
+  <div class="card full">
+    <h2>Most Frequent Entities</h2>
+    <div class="chart-container">
+      <canvas id="topChart"></canvas>
+    </div>
+    <div class="legend" id="topLegend"></div>
+  </div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat-chip"><span class="num">339</span><span class="label">LOC (locations)</span></div>
+  <div class="stat-chip"><span class="num">44</span><span class="label">PER (persons)</span></div>
+  <div class="stat-chip"><span class="num">43</span><span class="label">ORG (organizations)</span></div>
+  <div class="stat-chip"><span class="num">176</span><span class="label">unique entities</span></div>
+  <div class="stat-chip"><span class="num">71</span><span class="label">× "Ukraine" mentioned</span></div>
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────
+const COUNT_MAP = [
+  { name: "Ukraine",          count: 71, type: "LOC" },
+  { name: "Russia",           count: 47, type: "LOC" },
+  { name: "Kiev",             count: 15, type: "LOC" },
+  { name: "Moscow",           count:  9, type: "LOC" },
+  { name: "USSR",             count:  9, type: "LOC" },
+  { name: "Russian Empire",   count:  8, type: "LOC" },
+  { name: "Poland",           count:  7, type: "LOC" },
+  { name: "Donbas",           count:  6, type: "LOC" },
+  { name: "Europe",           count:  5, type: "LOC" },
+  { name: "Polish–Lith. Commonwealth", count: 5, type: "LOC" },
+  { name: "Bohdan Khmelnytsky", count: 5, type: "PER" },
+  { name: "UPR",              count:  5, type: "LOC" },
+  { name: "Germany",          count:  5, type: "LOC" },
+  { name: "Austria-Hungary",  count:  5, type: "LOC" },
+  { name: "Ukrainian SSR",    count:  5, type: "LOC" },
+  { name: "Soviet Union",     count:  5, type: "LOC" },
+  { name: "Ancient Rus",      count:  4, type: "LOC" },
+  { name: "Rus",              count:  4, type: "LOC" },
+  { name: "Lithuania",        count:  4, type: "LOC" },
+  { name: "CPSU",             count:  4, type: "ORG" },
+];
+
+const COLORS = {
+  LOC: { bg: "rgba(5,150,105,0.7)", border: "#059669", light: "rgba(5,150,105,0.12)" },
+  PER: { bg: "rgba(37,99,235,0.7)",  border: "#2563eb", light: "rgba(37,99,235,0.12)" },
+  ORG: { bg: "rgba(217,119,6,0.7)",  border: "#d97706", light: "rgba(217,119,6,0.12)" },
+};
+
+// ── CHART 1: Donut — type distribution ───────────────
+const typeCtx = document.getElementById('typeChart').getContext('2d');
+const typeLabels = ['LOC — Locations (339)', 'PER — Persons (44)', 'ORG — Organizations (43)'];
+new Chart(typeCtx, {
+  type: 'doughnut',
+  data: {
+    labels: typeLabels,
+    datasets: [{
+      data: [339, 44, 43],
+      backgroundColor: ['rgba(5,150,105,0.85)', 'rgba(37,99,235,0.85)', 'rgba(217,119,6,0.85)'],
+      borderColor: ['#059669', '#2563eb', '#d97706'],
+      borderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '68%',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#1a1d2e',
+        titleFont: { size: 13 },
+        bodyFont: { size: 13 },
+        padding: 10,
+        cornerRadius: 8,
+        callbacks: {
+          label: ctx => ` ${ctx.parsed} mentions (${(ctx.parsed / 426 * 100).toFixed(1)}%)`
+        }
+      }
+    }
+  },
+  plugins: [{
+    id: 'centerText',
+    afterDraw(chart) {
+      const { ctx, width, height } = chart;
+      ctx.save();
+      ctx.fillStyle = '#e1e4ea';
+      ctx.font = 'bold 32px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('426', width / 2, height / 2 - 6);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '13px -apple-system, sans-serif';
+      ctx.fillText('total mentions', width / 2, height / 2 + 22);
+      ctx.restore();
+    }
+  }]
+});
+
+// ── CHART 2: Bar — entity density by type ────────────
+const densityCtx = document.getElementById('densityChart').getContext('2d');
+new Chart(densityCtx, {
+  type: 'bar',
+  data: {
+    labels: ['LOC', 'PER', 'ORG'],
+    datasets: [
+      {
+        label: 'Unique entities',
+        data: [80, 34, 18],
+        backgroundColor: ['rgba(5,150,105,0.85)', 'rgba(37,99,235,0.85)', 'rgba(217,119,6,0.85)'],
+        borderColor: ['#059669', '#2563eb', '#d97706'],
+        borderWidth: 1,
+        borderRadius: 4,
+        barPercentage: 0.5,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#1a1d2e',
+        padding: 10,
+        cornerRadius: 8,
+        callbacks: {
+          afterLabel: (ctx) => {
+            const counts = { LOC: 339, PER: 44, ORG: 43 };
+            return ` ${counts[ctx.label]} total mentions`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: '#252837', drawBorder: false },
+        ticks: { color: '#64748b', font: { size: 13 } }
+      },
+      y: {
+        grid: { color: '#252837', drawBorder: false },
+        ticks: { color: '#64748b', font: { size: 12 } },
+        beginAtZero: true,
+      }
+    }
+  }
+});
+
+// ── CHART 3: Horizontal bar — top 20 ────────────────
+const topCtx = document.getElementById('topChart').getContext('2d');
+const topNames = COUNT_MAP.map(d => d.name).reverse();
+const topCounts = COUNT_MAP.map(d => d.count).reverse();
+const topColors = COUNT_MAP.map(d => COLORS[d.type].bg).reverse();
+const topBorders = COUNT_MAP.map(d => COLORS[d.type].border).reverse();
+
+new Chart(topCtx, {
+  type: 'bar',
+  data: {
+    labels: topNames,
+    datasets: [{
+      data: topCounts,
+      backgroundColor: topColors,
+      borderColor: topBorders,
+      borderWidth: 1,
+      borderRadius: 3,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#1a1d2e',
+        titleFont: { size: 13 },
+        bodyFont: { size: 13 },
+        padding: 10,
+        cornerRadius: 8,
+        callbacks: {
+          afterLabel: (ctx) => {
+            const item = COUNT_MAP[COUNT_MAP.length - 1 - ctx.dataIndex];
+            return ` Type: ${item.type}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: '#252837', drawBorder: false },
+        ticks: { color: '#64748b', font: { size: 12 } },
+        beginAtZero: true,
+      },
+      y: {
+        grid: { display: false },
+        ticks: { color: '#94a3b8', font: { size: 12 } }
+      }
+    }
+  }
+});
+
+// Legend for chart 3
+const legendEl = document.getElementById('topLegend');
+[['LOC — Location', '#059669'], ['PER — Person', '#2563eb'], ['ORG — Organization', '#d97706']].forEach(([label, color]) => {
+  const el = document.createElement('span');
+  el.className = 'legend-item';
+  el.innerHTML = `<span class="swatch" style="background:${color}"></span>${label}`;
+  legendEl.appendChild(el);
+});
+</script>
+</body>
+</html>
