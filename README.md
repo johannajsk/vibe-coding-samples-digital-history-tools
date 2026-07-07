@@ -2,6 +2,9 @@
 
 NER visualizations of Putin's presidential article **"On the Historical Unity of Russians and Ukrainians"** (July 2021).
 
+## Disclaimer
+The article represents an attempt by the author to politically instrumentalize the shared history between Ukraine and Russia. The content of the article should not be takesn at face values but reflected critically. 
+
 ## Files
 
 - **`index.html`** / **`ner_article46_viz.html`** — Interactive Chart.js visualization: entity type donut chart, entity count bar chart, top 20 entities ranked by mention count. Hover for tooltips.
